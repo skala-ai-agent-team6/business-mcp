@@ -1,0 +1,42 @@
+services:
+  business-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: business-mcp
+    restart: unless-stopped
+    environment:
+      PGHOST: local-pgvector-postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-app}
+      PGUSER: ${POSTGRES_USER:-app}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password123}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=2).close()"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  business-mcp-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: business-mcp-client
+    command: ["python", "client.py"]
+    environment:
+      MCP_URL: http://business-mcp:8000/mcp
+    depends_on:
+      business-mcp:
+        condition: service_healthy
+
+networks:
+  default:
+    external: true
+    name: ${PGVECTOR_DOCKER_NETWORK:-week14_default}
+
