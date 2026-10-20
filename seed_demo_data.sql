@@ -46,12 +46,17 @@ SELECT 'Demo Seoul Warehouse', 'Seoul', '100 Demo-ro, Seoul', '+82-2-555-0101'
 WHERE NOT EXISTS (
     SELECT 1 FROM warehouse WHERE name = 'Demo Seoul Warehouse'
 );
+UPDATE warehouse SET location = 'B동 3열 2단'
+WHERE name = 'Demo Seoul Warehouse';
 
 INSERT INTO factory (name, country, region, address, phone)
 SELECT 'Demo Busan Parts Factory', 'KR', 'Busan', '200 Factory-ro, Busan', '+82-51-555-0102'
 WHERE NOT EXISTS (
     SELECT 1 FROM factory WHERE name = 'Demo Busan Parts Factory'
 );
+UPDATE factory
+SET contact_name = 'Demo Contact', email = 'parts.busan@example.test'
+WHERE name = 'Demo Busan Parts Factory';
 
 INSERT INTO inventory (warehouse_id, part_id, on_hand, reserved)
 SELECT w.id, p.id, 25, 3
@@ -64,14 +69,20 @@ SET on_hand = EXCLUDED.on_hand,
     reserved = EXCLUDED.reserved,
     version = inventory.version + 1;
 
-INSERT INTO part_supplier (part_id, factory_id, lead_days)
-SELECT p.id, f.id, 5
+INSERT INTO part_supplier (part_id, factory_id, lead_days, unit_price)
+SELECT p.id, f.id, 5,
+       CASE p.part_number
+           WHEN 'PCB-DEMO-001' THEN 48000
+           WHEN 'MOTOR-DEMO-001' THEN 68000
+           ELSE 9500
+       END
 FROM part p
 CROSS JOIN factory f
 WHERE p.part_number IN ('PCB-DEMO-001', 'MOTOR-DEMO-001', 'PART-DEMO-001')
   AND f.name = 'Demo Busan Parts Factory'
 ON CONFLICT (part_id, factory_id) DO UPDATE
-SET lead_days = EXCLUDED.lead_days;
+SET lead_days = EXCLUDED.lead_days,
+    unit_price = EXCLUDED.unit_price;
 
 INSERT INTO purchase_order (
     case_reference, request_key, requested_by, status
