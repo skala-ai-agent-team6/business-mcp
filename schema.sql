@@ -34,11 +34,13 @@ CREATE TABLE model_part (
 CREATE TABLE factory (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  name text NOT NULL, country text NOT NULL, region text NOT NULL,
- address text NOT NULL, phone text NOT NULL
+ address text NOT NULL, phone text NOT NULL,
+ contact_name text, email text
 );
 CREATE TABLE part_supplier (
  part_id bigint REFERENCES part, factory_id bigint REFERENCES factory,
- lead_days integer CHECK(lead_days>=0), PRIMARY KEY(part_id,factory_id)
+ lead_days integer CHECK(lead_days>=0), unit_price numeric(12,2) CHECK(unit_price>=0),
+ PRIMARY KEY(part_id,factory_id)
 );
 CREATE TABLE part_lot (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -152,7 +154,8 @@ CREATE TABLE confirmed_fault (
 );
 CREATE TABLE warehouse (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- name text NOT NULL, region text NOT NULL, address text NOT NULL, phone text
+ name text NOT NULL, region text NOT NULL, address text NOT NULL, phone text,
+ location text
 );
 CREATE TABLE inventory (
  warehouse_id bigint REFERENCES warehouse, part_id bigint REFERENCES part,
