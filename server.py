@@ -112,10 +112,9 @@ def search_past_orders(query: str, limit: int = 5) -> list[dict[str, Any]]:
         )
         return _json_safe(cur.fetchall())
 
-
 @mcp.tool
 def get_part_availability(part_id: int) -> dict[str, Any]:
-    """Return exact warehouse stock and supplier/factory lead-time information."""
+    """Return stock, warehouse locations, supplier contacts, pricing, arrival estimates, and compatible models."""
     with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
@@ -130,7 +129,8 @@ def get_part_availability(part_id: int) -> dict[str, Any]:
         cur.execute(
             """
             SELECT w.id AS warehouse_id, w.name AS warehouse_name,
-                   w.region, i.on_hand, i.reserved,
+                   w.region, w.address AS warehouse_location,
+                   i.on_hand, i.reserved,
                    i.on_hand - i.reserved AS available
             FROM inventory i
             JOIN warehouse w ON w.id = i.warehouse_id
@@ -143,7 +143,11 @@ def get_part_availability(part_id: int) -> dict[str, Any]:
         cur.execute(
             """
             SELECT f.id AS factory_id, f.name AS factory_name,
-                   f.country, f.region, f.address, f.phone, ps.lead_days
+                   f.country, f.region, f.address, f.phone,
+                   to_jsonb(f)->>'contact_name' AS contact_name,
+                   to_jsonb(f)->>'email' AS email, ps.lead_days,
+                   CURRENT_DATE + ps.lead_days AS estimated_arrival_date,
+                   NULLIF(to_jsonb(ps)->>'unit_price', '')::numeric AS unit_price
             FROM part_supplier ps
             JOIN factory f ON f.id = ps.factory_id
             WHERE ps.part_id = %s
@@ -152,7 +156,23 @@ def get_part_availability(part_id: int) -> dict[str, Any]:
             (part_id,),
         )
         suppliers = cur.fetchall()
-        return _json_safe({"part": part, "warehouses": warehouses, "suppliers": suppliers})
+        cur.execute(
+            """
+            SELECT m.id AS model_id, m.model_code, m.name AS model_name
+            FROM model_part mp
+            JOIN product_model m ON m.id = mp.model_id
+            WHERE mp.part_id = %s
+            ORDER BY m.model_code
+            """,
+            (part_id,),
+        )
+        compatible_models = cur.fetchall()
+        return _json_safe({
+            "part": part,
+            "warehouses": warehouses,
+            "suppliers": suppliers,
+            "compatible_models": compatible_models,
+        })
 
 
 @mcp.tool
@@ -221,7 +241,8 @@ def get_purchase_order(order_id: int) -> dict[str, Any]:
     with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
-            SELECT po.id, po.case_reference, po.status, po.requested_by,
+            SELECT po.id, po.case_reference AS reference_id,
+                   po.status, po.requested_by,
                    requester.name AS requester_name, po.decided_by,
                    approver.name AS approver_name, po.decision_note,
                    po.decided_at, po.created_at
